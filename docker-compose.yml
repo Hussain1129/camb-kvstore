@@ -1,0 +1,99 @@
+services:
+  redis:
+    image: redis:7.2-alpine
+    container_name: camb-redis
+    command: redis-server # --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - camb-network
+    healthcheck:
+      interval: 10s
+      test: ["CMD", "redis-cli", "ping"]
+      retries: 3
+      start_period: 10s
+      timeout: 3s
+
+  redis-huey:
+    image: redis:7.2-alpine
+    container_name: camb-redis-huey
+    command: redis-server --appendonly yes
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_huey_data:/data
+    networks:
+      - camb-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: camb-app
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - HUEY_REDIS_HOST=redis-huey
+      - HUEY_REDIS_PORT=6379
+    depends_on:
+      redis:
+        condition: service_healthy
+      redis-huey:
+        condition: service_healthy
+    networks:
+      - camb-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  huey:
+    build:
+      context: .
+      dockerfile: Dockerfile.huey
+    container_name: camb-huey
+    command: huey_consumer app.tasks.huey_config.huey -w 4 -k thread
+    volumes:
+      - ./app:/app/app
+    env_file:
+      - .env
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=${REDIS_PORT}
+      - HUEY_REDIS_HOST=redis-huey
+      - HUEY_REDIS_PORT=${HUEY_REDIS_PORT}
+    depends_on:
+      redis:
+        condition: service_healthy
+      redis-huey:
+        condition: service_healthy
+    networks:
+      - camb-network
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+    driver: local
+  redis_huey_data:
+    driver: local
+
+networks:
+  camb-network:
+    driver: bridge
