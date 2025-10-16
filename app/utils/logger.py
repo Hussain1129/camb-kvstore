@@ -15,7 +15,7 @@ def get_logger(name: str) -> logging.Logger:
 
     handler = logging.StreamHandler(sys.stdout)
 
-    if settings.ENVIRONMENT == "production":
+    if settings.ENVIRONMENT == "dev":
         formatter = jsonlogger.JsonFormatter(
             fmt="%(asctime)s %(name)s %(levelname)s %(message)s",
             datefmt="%Y-%m-%d %H:%M:%S"

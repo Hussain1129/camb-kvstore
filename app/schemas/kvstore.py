@@ -87,7 +87,7 @@ class KeyValueResponse(KeyValueBase):
                 "tenant_id": "550e8400-e29b-41d4-a716-446655440000",
                 "ttl": 3600,
                 "version": 1,
-                "tags": {"category": "user", "environment": "production"},
+                "tags": {"category": "user", "environment": "development"},
                 "created_at": "2025-01-01T12:00:00",
                 "updated_at": "2025-01-01T12:00:00",
                 "expires_at": "2025-01-01T13:00:00"

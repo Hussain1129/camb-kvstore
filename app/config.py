@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     APP_NAME: str = os.getenv("APP_NAME", "CAMB KVStore")
     APP_VERSION: str = os.getenv("APP_VERSION", "1.0.0")
-    ENVIRONMENT: str =  os.getenv("ENVIRONMENT", "dev")
+    ENVIRONMENT: str =  os.getenv("ENVIRONMENT", "prod")
     DEBUG: bool = bool(os.getenv("DEBUG")) if os.getenv("DEBUG") is not None else False
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
 

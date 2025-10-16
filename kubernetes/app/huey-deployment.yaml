@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: camb-kvstore-huey
+  namespace: camb-kvstore
+  labels:
+    app: camb-kvstore
+    component: huey-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: camb-kvstore
+      component: huey-worker
+  template:
+    metadata:
+      labels:
+        app: camb-kvstore
+        component: huey-worker
+    spec:
+      containers:
+      - name: huey
+        image: camb-kvstore-huey:latest
+        imagePullPolicy: IfNotPresent
+        command:
+        - huey_consumer
+        - app.tasks.huey_config.huey
+        - -w
+        - "4"
+        - -k
+        - thread
+        env:
+        - name: SECRET_KEY
+          valueFrom:
+            secretKeyRef:
+              name: camb-kvstore-secret
+              key: SECRET_KEY
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: camb-kvstore-secret
+              key: REDIS_PASSWORD
+        envFrom:
+        - configMapRef:
+            name: camb-kvstore-config
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "384Mi"
+            cpu: "300m"
+        livenessProbe:
+          exec:
+            command:
+            - pgrep
+            - -f
+            - huey_consumer
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+      restartPolicy: Always
