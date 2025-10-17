@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: huey
-        image: camb-kvstore-huey:latest
+        image: hussain1129/camb-kvstore-huey:v1.1
         imagePullPolicy: IfNotPresent
         command:
         - huey_consumer

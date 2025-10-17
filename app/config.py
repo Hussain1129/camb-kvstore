@@ -26,8 +26,8 @@ class Settings(BaseSettings):
 
     REDIS_HOST: str = os.getenv("REDIS_HOST", "localhost")
     REDIS_PORT: int = os.getenv("REDIS_PORT", "6379")
-    REDIS_PASSWORD: Optional[str] = os.getenv("REDIS_PASSWORD", None)
-    REDIS_DB: int = os.getenv("REDIS_DB", 1)
+    REDIS_PASSWORD: Optional[str] = os.getenv("REDIS_PASSWORD", "admin123")
+    REDIS_DB: int = os.getenv("REDIS_DB", 0)
     REDIS_MAX_CONNECTIONS: int = os.getenv("REDIS_MAX_CONNECTIONS", 100)
     REDIS_SOCKET_TIMEOUT: int = os.getenv("REDIS_SOCKET_TIMEOUT", 10)
     REDIS_SOCKET_CONNECT_TIMEOUT: int = os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT", 10)

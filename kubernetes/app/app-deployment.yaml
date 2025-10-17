@@ -8,11 +8,6 @@ metadata:
     component: api
 spec:
   replicas: 3
-#  strategy:
-#    type: RollingUpdate
-#    rollingUpdate:
-#      maxSurge: 1
-#      maxUnavailable: 0
   selector:
     matchLabels:
       app: camb-kvstore
@@ -22,14 +17,10 @@ spec:
       labels:
         app: camb-kvstore
         component: api
-#      annotations:
-#        prometheus.io/scrape: "true"
-#        prometheus.io/port: "8000"
-#        prometheus.io/path: "/metrics"
     spec:
       containers:
       - name: app
-        image: camb-kvstore:latest
+        image: hussain1129/camb-kvstore:v1.1
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000
@@ -72,10 +63,7 @@ spec:
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 3
-        # lifecycle → preStop runs just before the container stops.
-        # Here, it waits 5 seconds (sleep 5) to let Redis safely finish its work before Kubernetes kills it.
         lifecycle:
           preStop:
             exec:
               command: ["/bin/sh", "-c", "sleep 5"]
-#      terminationGracePeriodSeconds: 30

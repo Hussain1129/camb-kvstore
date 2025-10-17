@@ -30,11 +30,9 @@ class RedisClient:
                 encoding='utf-8'
             )
             self._client = redis.Redis(connection_pool=self._pool)
-
-            # Test connection
             self._client.ping()
-            logger.info("Redis connection established successfully")
 
+            logger.info("Redis connection established successfully")
         except redis.ConnectionError as e:
             logger.error(f"Failed to connect to Redis: {str(e)}")
             raise RedisConnectionError(detail=f"Failed to connect to Redis: {str(e)}")

@@ -1,8 +1,14 @@
+x-redis-and-huey-env: &redis-and-huey
+  REDIS_HOST: ${REDIS_HOST}
+  REDIS_PORT: ${REDIS_PORT}
+  HUEY_REDIS_HOST: ${HUEY_REDIS_HOST}
+  HUEY_REDIS_PORT: ${HUEY_REDIS_PORT}
+
 services:
   redis:
     image: redis:7.2-alpine
     container_name: camb-redis
-    command: redis-server # --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --requirepass admin123
     ports:
       - "6379:6379"
     volumes:
@@ -46,10 +52,7 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - HUEY_REDIS_HOST=redis-huey
-      - HUEY_REDIS_PORT=6379
+      <<: *redis-and-huey
     depends_on:
       redis:
         condition: service_healthy
@@ -75,10 +78,7 @@ services:
     env_file:
       - .env
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=${REDIS_PORT}
-      - HUEY_REDIS_HOST=redis-huey
-      - HUEY_REDIS_PORT=${HUEY_REDIS_PORT}
+      <<: *redis-and-huey
     depends_on:
       redis:
         condition: service_healthy

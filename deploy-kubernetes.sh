@@ -2,51 +2,39 @@
 
 echo "Starting Minikube deployment for CAMB KVStore..."
 
-# Start Minikube
-echo "1. Starting Minikube..."
+echo "Checking Minikube..."
+
+if minikube status | grep -q "host: Running"; then
+    echo "✅ Minikube is running."
+else
+    echo "❌ Minikube is not running. Starting it now..."
+    minikube start
+fi
+
+
+echo "Starting Minikube..."
 minikube start --cpus=4 --memory=8192 --driver=docker
 
-# Enable addons
-echo "2. Enabling Minikube addons..."
+echo "Enabling Minikube addons..."
 minikube addons enable ingress
 minikube addons enable metrics-server
 
-# Build Docker images in Minikube
-echo "3. Building Docker images..."
-eval $(minikube docker-env)
-docker build -t camb-kvstore:latest -f Dockerfile .
-docker build -t camb-kvstore-huey:latest -f Dockerfile.huey .
+echo "Creating namespace..."
+kubectl apply -f kubernetes/namespace.yaml
 
-# Create namespace
-echo "4. Creating namespace..."
-kubectl apply -f kubernetes/00-namespace.yaml
+echo "Applying ConfigMap and Secret..."
+kubectl apply -f kubernetes/configmap.yaml
+kubectl apply -f kubernetes/secret.yaml
 
-# Apply configurations
-echo "5. Applying ConfigMap and Secret..."
-kubectl apply -f kubernetes/01-configmap.yaml
-kubectl apply -f kubernetes/02-secret.yaml
-
-# Deploy Redis
-echo "6. Deploying Redis..."
+echo "Deploying Redis..."
 kubectl apply -f kubernetes/redis/
 
-# Wait for Redis to be ready
-echo "7. Waiting for Redis to be ready..."
-kubectl wait --for=condition=ready pod -l app=redis,role=master -n camb-kvstore --timeout=300s
-
-# Deploy Application
-echo "8. Deploying Application..."
+echo "Deploying Application..."
 kubectl apply -f kubernetes/app/
 
-# Wait for application to be ready
-echo "9. Waiting for application pods to be ready..."
-kubectl wait --for=condition=ready pod -l app=camb-kvstore,component=api -n camb-kvstore --timeout=300s
+echo "Deploying Ingress..."
+kubectl apply -f kubernetes/ingress.yaml
 
-# Deploy Ingress
-echo "10. Deploying Ingress..."
-kubectl apply -f kubernetes/13-ingress.yaml
-
-# Get Minikube IP
 MINIKUBE_IP=$(minikube ip)
 
 echo ""
@@ -54,15 +42,15 @@ echo "============================================"
 echo "Deployment completed successfully!"
 echo "============================================"
 echo ""
-echo "Access the application at:"
-echo "  http://$MINIKUBE_IP:30080"
-echo ""
-echo "Add to /etc/hosts (optional):"
-echo "  $MINIKUBE_IP camb-kvstore.local"
-echo ""
+echo "Run minikube command to access your project on localhost"
+minikube service camb-kvstore-service -n camb-kvstore
+
+
 echo "Useful commands:"
 echo "  kubectl get pods -n camb-kvstore"
+echo "  kubectl get deployments -n camb-kvstore"
 echo "  kubectl get svc -n camb-kvstore"
+echo "  kubectl get ns -n camb-kvstore"
 echo "  kubectl logs -f deployment/camb-kvstore-app -n camb-kvstore"
 echo "  minikube dashboard"
 echo ""

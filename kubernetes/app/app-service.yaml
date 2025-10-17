@@ -11,10 +11,8 @@ spec:
     app: camb-kvstore
     component: api
 
-#  type: NodePort
   ports:
   - port: 8000            # using to expose inside in the clusterIP
     targetPort: 8000      # port your app container listens on.
     protocol: TCP
     name: http
-#    nodePort: 30080
