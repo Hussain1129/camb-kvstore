@@ -49,6 +49,7 @@ services:
       - "8000:8000"
     volumes:
       - ./app:/app/app
+      - ./tests:/app/tests
     env_file:
       - .env
     environment:
@@ -75,6 +76,7 @@ services:
     command: huey_consumer app.tasks.huey_config.huey -w 4 -k thread
     volumes:
       - ./app:/app/app
+      - ./tests:/app/tests
     env_file:
       - .env
     environment:

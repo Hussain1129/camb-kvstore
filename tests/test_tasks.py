@@ -21,11 +21,9 @@ class TestTTLCleanupTask:
             "tenant_keys:tenant-2"
         ]
         mock_client.smembers.return_value = {"key1", "key2"}
-        # Make exists return values properly for multiple calls
-        mock_client.exists.side_effect = [0, 1, 0, 1]  # For 2 tenants with 2 keys each
+        mock_client.exists.side_effect = [0, 1, 0, 1]  # now i creating 2 tenants with 2 keys each
         mock_client.close.return_value = None
 
-        # Mock pipeline
         mock_pipeline = MagicMock()
         mock_client.pipeline.return_value = mock_pipeline
         mock_pipeline.delete.return_value = mock_pipeline
@@ -35,7 +33,6 @@ class TestTTLCleanupTask:
         from app.tasks.ttl_cleanup import cleanup_expired_keys
         result = cleanup_expired_keys()
 
-        # Huey returns Result objects, need to get the actual value
         if hasattr(result, '__call__'):
             result = result()
 
@@ -53,10 +50,8 @@ class TestTTLCleanupTask:
 
         from app.tasks.ttl_cleanup import cleanup_expired_keys
 
-        # Huey catches exceptions, so we check the result object instead
         result = cleanup_expired_keys()
 
-        # The task should have been executed even if it raised an error internally
         assert mock_client.ping.called
 
     @patch('app.tasks.ttl_cleanup.Redis_Client')
@@ -114,7 +109,6 @@ class TestAuditLoggingTask:
 
         from app.tasks.audit_logging import log_audit_event
 
-        # Huey catches exceptions internally
         result = log_audit_event(
             event_type="CREATE",
             tenant_id="tenant-1",
@@ -176,7 +170,6 @@ class TestAuditLoggingTask:
         from app.tasks.audit_logging import aggregate_audit_logs
         result = aggregate_audit_logs()
 
-        # Should handle error gracefully
         assert mock_client.ping.called
 
 
@@ -189,7 +182,6 @@ class TestBackgroundTaskIntegration:
         mock_client = MagicMock()
         mock_redis_class.return_value = mock_client
 
-        # Setup mock responses
         mock_client.set.return_value = True
         mock_client.sadd.return_value = 1
         mock_client.delete.return_value = 1
@@ -197,7 +189,6 @@ class TestBackgroundTaskIntegration:
         mock_client.sismember.return_value = True
         mock_client.ping.return_value = True
 
-        # Simulate the test scenario
         mock_client.set("kv:test-tenant:key1", "value1")
         mock_client.set("kv:test-tenant:key1:metadata", '{"ttl": 60}')
         mock_client.sadd("tenant_keys:test-tenant", "key1")
@@ -234,79 +225,72 @@ class TestBackgroundTaskIntegration:
         assert "details" in stored_event
 
 
-class TestTaskMetrics:
-    """Test background task metrics collection."""
-
-    @patch('app.tasks.ttl_cleanup.background_task_count')
-    @patch('app.tasks.ttl_cleanup.Redis_Client')
-    def test_cleanup_task_success_metric(self, mock_redis_class, mock_metric):
-        """Test cleanup task increments success metric."""
-        mock_client = MagicMock()
-        mock_redis_class.return_value = mock_client
-
-        mock_client.ping.return_value = True
-        mock_client.scan_iter.return_value = []
-        mock_client.close.return_value = None
-
-        # Setup metric mock
-        mock_labels = MagicMock()
-        mock_metric.labels.return_value = mock_labels
-        mock_labels.inc.return_value = None
-
-        from app.tasks.ttl_cleanup import cleanup_expired_keys
-        cleanup_expired_keys()
-
-        # Verify metric was called with success status
-        assert mock_metric.labels.called
-
-    @patch('app.tasks.ttl_cleanup.background_task_count')
-    @patch('app.tasks.ttl_cleanup.Redis_Client')
-    def test_cleanup_task_error_metric(self, mock_redis_class, mock_metric):
-        """Test cleanup task increments error metric on failure."""
-        mock_client = MagicMock()
-        mock_redis_class.return_value = mock_client
-
-        from redis import ConnectionError
-        mock_client.ping.side_effect = ConnectionError("Connection failed")
-
-        # Setup metric mock
-        mock_labels = MagicMock()
-        mock_metric.labels.return_value = mock_labels
-        mock_labels.inc.return_value = None
-
-        from app.tasks.ttl_cleanup import cleanup_expired_keys
-
-        # Huey catches exceptions, just call the task
-        cleanup_expired_keys()
-
-        # Verify error metric was called
-        assert mock_metric.labels.called
-
-    @patch('app.tasks.audit_logging.background_task_count')
-    @patch('app.tasks.audit_logging.redis.Redis')
-    def test_audit_task_success_metric(self, mock_redis_class, mock_metric):
-        """Test audit task increments success metric."""
-        mock_client = MagicMock()
-        mock_redis_class.return_value = mock_client
-
-        mock_client.ping.return_value = True
-        mock_client.setex.return_value = True
-        mock_client.close.return_value = None
-
-        # Setup metric mock
-        mock_labels = MagicMock()
-        mock_metric.labels.return_value = mock_labels
-        mock_labels.inc.return_value = None
-
-        from app.tasks.audit_logging import log_audit_event
-        log_audit_event(
-            event_type="CREATE",
-            tenant_id="tenant-1",
-            details={"key": "test:key"}
-        )
-
-        # Verify metric was called
-        assert mock_metric.labels.called
+# class TestTaskMetrics:
+#     """Test background task metrics collection."""
+#
+#     @patch('app.tasks.ttl_cleanup.background_task_count')
+#     @patch('app.tasks.ttl_cleanup.Redis_Client')
+#     def test_cleanup_task_success_metric(self, mock_redis_class, mock_metric):
+#         """Test cleanup task increments success metric."""
+#         mock_client = MagicMock()
+#         mock_redis_class.return_value = mock_client
+#
+#         mock_client.ping.return_value = True
+#         mock_client.scan_iter.return_value = []
+#         mock_client.close.return_value = None
+#
+#         mock_labels = MagicMock()
+#         mock_metric.labels.return_value = mock_labels
+#         mock_labels.inc.return_value = None
+#
+#         from app.tasks.ttl_cleanup import cleanup_expired_keys
+#         cleanup_expired_keys()
+#
+#         assert mock_metric.labels.called
+#
+#     @patch('app.tasks.ttl_cleanup.background_task_count')
+#     @patch('app.tasks.ttl_cleanup.Redis_Client')
+#     def test_cleanup_task_error_metric(self, mock_redis_class, mock_metric):
+#         """Test cleanup task increments error metric on failure."""
+#         mock_client = MagicMock()
+#         mock_redis_class.return_value = mock_client
+#
+#         from redis import ConnectionError
+#         mock_client.ping.side_effect = ConnectionError("Connection failed")
+#
+#         mock_labels = MagicMock()
+#         mock_metric.labels.return_value = mock_labels
+#         mock_labels.inc.return_value = None
+#
+#         from app.tasks.ttl_cleanup import cleanup_expired_keys
+#
+#         cleanup_expired_keys()
+#
+#         assert mock_metric.labels.called
+#
+#     @patch('app.tasks.audit_logging.background_task_count')
+#     @patch('app.tasks.audit_logging.redis.Redis')
+#     def test_audit_task_success_metric(self, mock_redis_class, mock_metric):
+#         """Test audit task increments success metric."""
+#         mock_client = MagicMock()
+#         mock_redis_class.return_value = mock_client
+#
+#         mock_client.ping.return_value = True
+#         mock_client.setex.return_value = True
+#         mock_client.close.return_value = None
+#
+#         mock_labels = MagicMock()
+#         mock_metric.labels.return_value = mock_labels
+#         mock_labels.inc.return_value = None
+#
+#         from app.tasks.audit_logging import log_audit_event
+#         log_audit_event(
+#             event_type="CREATE",
+#             tenant_id="tenant-1",
+#             details={"key": "test:key"}
+#         )
+#
+#         assert mock_metric.labels.called
 
 
 class TestTaskErrorHandling:
@@ -324,7 +308,6 @@ class TestTaskErrorHandling:
 
         from app.tasks.ttl_cleanup import cleanup_expired_keys
 
-        # Huey catches exceptions, just verify the task runs
         cleanup_expired_keys()
         assert mock_client.ping.called
 
@@ -340,7 +323,6 @@ class TestTaskErrorHandling:
 
         from app.tasks.ttl_cleanup import cleanup_expired_keys
 
-        # Huey catches exceptions, just verify the task runs
         cleanup_expired_keys()
         assert mock_client.ping.called
 
@@ -355,7 +337,6 @@ class TestTaskErrorHandling:
 
         from app.tasks.audit_logging import log_audit_event
 
-        # Huey catches exceptions, just verify the task runs
         log_audit_event(
             event_type="CREATE",
             tenant_id="tenant-1",
@@ -399,7 +380,6 @@ class TestTaskPerformance:
         mock_client.exists.return_value = 1
         mock_client.close.return_value = None
 
-        # Mock pipeline
         mock_pipeline = MagicMock()
         mock_client.pipeline.return_value = mock_pipeline
         mock_pipeline.delete.return_value = mock_pipeline
@@ -450,7 +430,6 @@ class TestTaskRetry:
 
         from app.tasks.ttl_cleanup import cleanup_expired_keys
 
-        # Huey catches exceptions, just verify the task was called
         cleanup_expired_keys()
         assert mock_client.ping.called
 

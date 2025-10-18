@@ -1,9 +1,10 @@
 import pytest
-import redis
 from fastapi.testclient import TestClient
+import redis
+import uuid
+from httpx import AsyncClient
 from app.main import app
 from app.config import settings
-from app.core.redis_client import redis_client
 
 
 @pytest.fixture(scope="session")
@@ -45,67 +46,98 @@ def client():
 
 
 @pytest.fixture(scope="function")
+async def async_client():
+    """Fixture for async FastAPI test client."""
+    async with AsyncClient(app=app, base_url="http://test") as ac:
+        yield ac
+
+
+@pytest.fixture(scope="function")
 def test_user_data():
-    """Fixture for test user data."""
+    """Fixture for test user data with unique identifier."""
+    unique_id = uuid.uuid4().hex[:8]
     return {
-        "username": "testuser",
-        "email": "testuser@example.com",
+        "username": f"testuser_{unique_id}",
+        "email": f"testuser_{unique_id}@example.com",
         "password": "TestPass123"
     }
 
 
 @pytest.fixture(scope="function")
 def test_user_data_2():
-    """Fixture for second test user data."""
+    """Fixture for second test user data with unique identifier."""
+    unique_id = uuid.uuid4().hex[:8]
     return {
-        "username": "testuser2",
-        "email": "testuser2@example.com",
+        "username": f"testuser2_{unique_id}",
+        "email": f"testuser2_{unique_id}@example.com",
         "password": "TestPass456"
     }
 
 
 @pytest.fixture(scope="function")
 def test_kv_data():
-    """Fixture for test key-value data."""
+    """Fixture for test key-value data with unique identifier."""
+    unique_id = uuid.uuid4().hex[:8]
     return {
-        "key": "test:key:1",
+        "key": f"test:key:1:{unique_id}",
         "value": "test value",
         "ttl": 3600,
-        "tags": {"env": "test", "type": "string"}
+        "tags": {"env": "test", "type": "string", "unique_id": unique_id}
     }
 
 
 @pytest.fixture(scope="function")
 def test_kv_data_2():
-    """Fixture for second test key-value data."""
+    """Fixture for second test key-value data with unique identifier."""
+    unique_id = uuid.uuid4().hex[:8]
     return {
-        "key": "test:key:2",
+        "key": f"test:key:2:{unique_id}",
         "value": "another test value",
         "ttl": 7200,
-        "tags": {"env": "test", "type": "string"}
+        "tags": {"env": "test", "type": "string", "unique_id": unique_id}
     }
 
 
 @pytest.fixture(scope="function")
 def registered_user(client, test_user_data):
     """Fixture for registered user with tokens."""
-    response = client.post(
+    register_response = client.post(
         f"{settings.API_V1_PREFIX}/auth/register",
         json=test_user_data
     )
-    assert response.status_code == 201
-    return response.json()
+    assert register_response.status_code == 201, f"Registration failed: {register_response.json()}"
+
+    login_response = client.post(
+        f"{settings.API_V1_PREFIX}/auth/login",
+        json={
+            "username": test_user_data["username"],
+            "password": test_user_data["password"]
+        }
+    )
+    assert login_response.status_code == 200, f"Login failed: {login_response.json()}"
+
+    return login_response.json()
 
 
 @pytest.fixture(scope="function")
 def registered_user_2(client, test_user_data_2):
     """Fixture for second registered user with tokens."""
-    response = client.post(
+    register_response = client.post(
         f"{settings.API_V1_PREFIX}/auth/register",
         json=test_user_data_2
     )
-    assert response.status_code == 201
-    return response.json()
+    assert register_response.status_code == 201, f"Registration failed: {register_response.json()}"
+
+    login_response = client.post(
+        f"{settings.API_V1_PREFIX}/auth/login",
+        json={
+            "username": test_user_data_2["username"],
+            "password": test_user_data_2["password"]
+        }
+    )
+    assert login_response.status_code == 200, f"Login failed: {login_response.json()}"
+
+    return login_response.json()
 
 
 @pytest.fixture(scope="function")
@@ -137,27 +169,30 @@ def created_key(authenticated_client, test_kv_data):
         f"{settings.API_V1_PREFIX}/kv",
         json=test_kv_data
     )
-    assert response.status_code == 201
+    assert response.status_code == 201, f"Key creation failed: {response.json()}"
     return response.json()
 
 
 @pytest.fixture(scope="function")
 def multiple_created_keys(authenticated_client):
-    """Fixture for multiple created key-value pairs."""
+    """Fixture for multiple created key-value pairs with unique identifiers."""
     keys = []
+    batch_id = uuid.uuid4().hex[:8]
+
     for i in range(5):
         kv_data = {
-            "key": f"test:key:{i}",
+            "key": f"test:key:{i}:{batch_id}",
             "value": f"test value {i}",
             "ttl": 3600,
-            "tags": {"index": str(i), "batch": "test"}
+            "tags": {"index": str(i), "batch": batch_id, "batch_type": "test"}
         }
         response = authenticated_client.post(
             f"{settings.API_V1_PREFIX}/kv",
             json=kv_data
         )
-        assert response.status_code == 201
+        assert response.status_code == 201, f"Key creation failed: {response.json()}"
         keys.append(response.json())
+
     return keys
 
 
