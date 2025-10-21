@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: hussain1129/camb-kvstore:v1.1
+        image: hussain1129/camb-kvstore:v1.2
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8000

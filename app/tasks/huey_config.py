@@ -12,6 +12,7 @@ if settings.HUEY_IMMEDIATE or os.getenv('PYTEST_CURRENT_TEST'):
     )
     logger.info("Huey configured with MemoryHuey (immediate mode for tests)")
 
+
 else:
     huey = RedisHuey(
         name='camb-kvstore-tasks',

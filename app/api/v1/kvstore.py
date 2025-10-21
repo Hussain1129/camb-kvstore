@@ -22,33 +22,36 @@ logger = get_logger(__name__)
 router = APIRouter()
 
 
+def _build_kv_response(kv_pair) -> KeyValueResponse:
+    """Helper to convert KV model to response schema"""
+    return KeyValueResponse(
+        key=kv_pair.key,
+        value=kv_pair.value,
+        tenant_id=kv_pair.tenant_id,
+        ttl=kv_pair.ttl,
+        version=kv_pair.version,
+        tags=kv_pair.tags,
+        created_at=kv_pair.created_at,
+        updated_at=kv_pair.updated_at,
+        expires_at=kv_pair.expires_at
+    )
+
+
 @router.post(
     "",
     response_model=KeyValueResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create key-value pair",
-    description="Create a new key-value pair for the authenticated tenant"
+    description="Create a new key-value pair for the current authenticated tenant"
 )
 async def create_key_value(
         kv_data: KeyValueCreate,
         tenant_id: Annotated[str, Depends(get_tenant_id)],
         kvstore_service: Annotated[KVStoreService, Depends(get_kvstore_service)]
 ):
-    """Create a new key-value pair."""
     try:
         kv_pair = kvstore_service.create(tenant_id, kv_data)
-
-        return KeyValueResponse(
-            key=kv_pair.key,
-            value=kv_pair.value,
-            tenant_id=kv_pair.tenant_id,
-            ttl=kv_pair.ttl,
-            version=kv_pair.version,
-            tags=kv_pair.tags,
-            created_at=kv_pair.created_at,
-            updated_at=kv_pair.updated_at,
-            expires_at=kv_pair.expires_at
-        )
+        return _build_kv_response(kv_pair)
     except ResourceAlreadyExistsError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
     except ValidationError as e:
@@ -69,21 +72,9 @@ async def get_key_value(
         tenant_id: Annotated[str, Depends(get_tenant_id)],
         kvstore_service: Annotated[KVStoreService, Depends(get_kvstore_service)]
 ):
-    """Retrieve a key-value pair by key."""
     try:
         kv_pair = kvstore_service.get(tenant_id, key)
-
-        return KeyValueResponse(
-            key=kv_pair.key,
-            value=kv_pair.value,
-            tenant_id=kv_pair.tenant_id,
-            ttl=kv_pair.ttl,
-            version=kv_pair.version,
-            tags=kv_pair.tags,
-            created_at=kv_pair.created_at,
-            updated_at=kv_pair.updated_at,
-            expires_at=kv_pair.expires_at
-        )
+        return _build_kv_response(kv_pair)
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except KeyValueStoreError as e:
@@ -103,21 +94,9 @@ async def update_key_value(
         tenant_id: Annotated[str, Depends(get_tenant_id)],
         kvstore_service: Annotated[KVStoreService, Depends(get_kvstore_service)]
 ):
-    """Update an existing key-value pair."""
     try:
         kv_pair = kvstore_service.update(tenant_id, key, kv_update)
-
-        return KeyValueResponse(
-            key=kv_pair.key,
-            value=kv_pair.value,
-            tenant_id=kv_pair.tenant_id,
-            ttl=kv_pair.ttl,
-            version=kv_pair.version,
-            tags=kv_pair.tags,
-            created_at=kv_pair.created_at,
-            updated_at=kv_pair.updated_at,
-            expires_at=kv_pair.expires_at
-        )
+        return _build_kv_response(kv_pair)
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except ValidationError as e:
@@ -130,17 +109,16 @@ async def update_key_value(
     "/{key}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete key-value pair",
-    description="Delete a key-value pair by key"
+    description="Delete a key-value pair by key from redis db"
 )
 async def delete_key_value(
         key: str,
         tenant_id: Annotated[str, Depends(get_tenant_id)],
         kvstore_service: Annotated[KVStoreService, Depends(get_kvstore_service)]
 ):
-    """Delete a key-value pair by key."""
     try:
         kvstore_service.delete(tenant_id, key)
-        logger.info(f"Key deleted: {key} for tenant: {tenant_id}")
+        logger.info(f"Deleted {key} (tenant: {tenant_id})")
         return None
     except ResourceNotFoundError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
@@ -163,45 +141,27 @@ async def list_key_values(
         tag_key: Optional[str] = Query(None, description="Filter by tag key"),
         tag_value: Optional[str] = Query(None, description="Filter by tag value")
 ):
-    """List all key-value pairs for the authenticated tenant."""
-    try:
-        tag_filter = None
-        if tag_key and tag_value:
-            tag_filter = {tag_key: tag_value}
+    # TODO: optimize this for large tenant keysets - maybe use SCAN instead of SMEMBERS
+    tag_filter = None
+    if tag_key and tag_value:
+        tag_filter = {tag_key: tag_value}
 
-        kv_pairs, total = kvstore_service.list_keys(
-            tenant_id=tenant_id,
-            page=page,
-            page_size=page_size,
-            tag_filter=tag_filter
-        )
+    kv_pairs, total = kvstore_service.list_keys(
+        tenant_id=tenant_id,
+        page=page,
+        page_size=page_size,
+        tag_filter=tag_filter
+    )
 
-        items = [
-            KeyValueResponse(
-                key=kv.key,
-                value=kv.value,
-                tenant_id=kv.tenant_id,
-                ttl=kv.ttl,
-                version=kv.version,
-                tags=kv.tags,
-                created_at=kv.created_at,
-                updated_at=kv.updated_at,
-                expires_at=kv.expires_at
-            )
-            for kv in kv_pairs
-        ]
-        total_active_items = len(items)
-        total_expired_items = total - len(items)
+    items = [_build_kv_response(kv) for kv in kv_pairs]
 
-        return KeyValueListResponse(
-            items=items,
-            active=total_active_items,
-            expired=total_expired_items,
-            page=page,
-            page_size=page_size
-        )
-    except KeyValueStoreError as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    return KeyValueListResponse(
+        items=items,
+        active=len(items),
+        expired=total - len(items),
+        page=page,
+        page_size=page_size
+    )
 
 
 @router.post(
@@ -216,32 +176,14 @@ async def batch_create_key_values(
         tenant_id: Annotated[str, Depends(get_tenant_id)],
         kvstore_service: Annotated[KVStoreService, Depends(get_kvstore_service)]
 ):
-    """Batch create multiple key-value pairs."""
-    try:
-        created_pairs = kvstore_service.batch_create(tenant_id, batch_data.items)
+    created_pairs = kvstore_service.batch_create(tenant_id, batch_data.items)
+    items = [_build_kv_response(kv) for kv in created_pairs]
 
-        items = [
-            KeyValueResponse(
-                key=kv.key,
-                value=kv.value,
-                tenant_id=kv.tenant_id,
-                ttl=kv.ttl,
-                version=kv.version,
-                tags=kv.tags,
-                created_at=kv.created_at,
-                updated_at=kv.updated_at,
-                expires_at=kv.expires_at
-            )
-            for kv in created_pairs
-        ]
-
-        return {
-            "created": len(created_pairs),
-            "total": len(batch_data.items),
-            "items": items
-        }
-    except KeyValueStoreError as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+    return {
+        "created": len(created_pairs),
+        "total": len(batch_data.items),
+        "items": items
+    }
 
 
 @router.get(
@@ -256,7 +198,6 @@ async def get_key_ttl(
         tenant_id: Annotated[str, Depends(get_tenant_id)],
         kvstore_service: Annotated[KVStoreService, Depends(get_kvstore_service)]
 ):
-    """Get remaining TTL for a key."""
     try:
         ttl = kvstore_service.get_ttl(tenant_id, key)
         return {"key": key, "ttl": ttl}
@@ -269,14 +210,13 @@ async def get_key_ttl(
     response_model=dict,
     status_code=status.HTTP_200_OK,
     summary="Check key existence",
-    description="Check if a key exists"
+    description="Check if a key exists in redis db"
 )
 async def check_key_exists(
         key: str,
         tenant_id: Annotated[str, Depends(get_tenant_id)],
         kvstore_service: Annotated[KVStoreService, Depends(get_kvstore_service)]
 ):
-    """Check if a key exists."""
     exists = kvstore_service.exists(tenant_id, key)
     return {"key": key, "exists": exists}
 
@@ -286,12 +226,11 @@ async def check_key_exists(
     response_model=dict,
     status_code=status.HTTP_200_OK,
     summary="Get key count",
-    description="Get total number of keys for the authenticated tenant"
+    description="Get the total number of keys for the authenticated tenant"
 )
 async def get_key_count(
         tenant_id: Annotated[str, Depends(get_tenant_id)],
         kvstore_service: Annotated[KVStoreService, Depends(get_kvstore_service)]
 ):
-    """Get total key count for tenant."""
     count = kvstore_service.count_keys(tenant_id)
     return {"tenant_id": tenant_id, "count": count}

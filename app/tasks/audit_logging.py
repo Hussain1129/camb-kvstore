@@ -6,13 +6,11 @@ from typing import Dict, Any
 from app.tasks import huey
 from app.config import settings
 from app.utils.logger import get_logger
-from app.utils.metrics import background_task_count, background_task_duration, track_time
 
 logger = get_logger(__name__)
 
 
 @huey.task()
-@track_time(background_task_duration, {"task_name": "log_audit_event"})
 def log_audit_event(event_type: str, tenant_id: str, details: Dict[str, Any]):
     """
     Task to log audit events for key-value operations.
@@ -48,20 +46,16 @@ def log_audit_event(event_type: str, tenant_id: str, details: Dict[str, Any]):
 
         logger.debug(f"Audit event logged: {event_type} for tenant: {tenant_id}")
 
-        background_task_count.labels(task_name="log_audit_event", status="success").inc()
-
         redis_client.close()
 
         return True
 
     except Exception as e:
         logger.error(f"Error logging audit event: {str(e)}")
-        background_task_count.labels(task_name="log_audit_event", status="error").inc()
         raise
 
 
 @huey.periodic_task(crontab(hour='0', minute='0'))       # schedule to run at everyday midnight
-@track_time(background_task_duration, {"task_name": "aggregate_audit_logs"})
 def aggregate_audit_logs():
     """
     Periodic task to aggregate audit logs daily.
@@ -110,15 +104,12 @@ def aggregate_audit_logs():
 
         logger.info(f"Audit log aggregation completed for {len(aggregation_data)} tenants")
 
-        background_task_count.labels(task_name="aggregate_audit_logs", status="success").inc()
-
         redis_client.close()
 
         return len(aggregation_data)
 
     except Exception as e:
         logger.error(f"Error in audit log aggregation: {str(e)}")
-        background_task_count.labels(task_name="aggregate_audit_logs", status="error").inc()
         raise
 
 

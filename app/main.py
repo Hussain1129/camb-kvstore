@@ -2,37 +2,34 @@ from fastapi import FastAPI, Request, status
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from prometheus_client import make_asgi_app
+
 import time
+
 from app.config import settings
 from app.core.redis_client import redis_client
 from app.api.v1 import api_router
 from app.utils.logger import get_logger
-from app.utils.metrics import request_count, request_duration, active_connections
 
 logger = get_logger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """
-    Application lifespan handler.
-    Manages startup and shutdown events.
-    """
-    logger.info("Starting application...")
+    """Application lifespan - startup/shutdown events"""
+    logger.info("Starting up...")
 
     try:
         redis_client.connect()
-        logger.info("Redis connection established")
+        logger.info("Connected to Redis")
     except Exception as e:
-        logger.error(f"Failed to connect to Redis: {str(e)}")
+        logger.error(f"Redis connection failed: {str(e)}")
         raise
 
     yield
 
-    logger.info("Shutting down application...")
+    logger.info("Shutting down...")
     redis_client.disconnect()
-    logger.info("Redis connection closed")
+    logger.info("Redis disconnected")
 
 
 app = FastAPI(
@@ -45,6 +42,7 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# TODO: restrict CORS in production
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -56,10 +54,7 @@ app.add_middleware(
 
 @app.middleware("http")
 async def add_process_time_header(request: Request, call_next):
-    """
-    Middleware to track request processing time and metrics.
-    """
-    active_connections.inc()
+    """Track request time"""
     start_time = time.time()
 
     response = await call_next(request)
@@ -67,27 +62,11 @@ async def add_process_time_header(request: Request, call_next):
     process_time = time.time() - start_time
     response.headers["X-Process-Time"] = str(process_time)
 
-    request_count.labels(
-        method=request.method,
-        endpoint=request.url.path,
-        status=response.status_code
-    ).inc()
-
-    request_duration.labels(
-        method=request.method,
-        endpoint=request.url.path
-    ).observe(process_time)
-
-    active_connections.dec()
-
     return response
 
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    """
-    Global exception handler for unhandled exceptions.
-    """
     logger.error(f"Unhandled exception: {str(exc)}", exc_info=True)
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -103,7 +82,6 @@ app.include_router(api_router, prefix=settings.API_V1_PREFIX)
 
 @app.get("/", tags=["Root"])
 async def root():
-    """Root endpoint returning API information."""
     return {
         "name": settings.APP_NAME,
         "version": settings.APP_VERSION,
@@ -115,14 +93,8 @@ async def root():
 
 @app.get("/health", tags=["Health"])
 async def health():
-    """Simple health check endpoint."""
     return {"status": "healthy"}
 
-
-if settings.ENABLE_METRICS:
-    metrics_app = make_asgi_app()
-    app.mount("/metrics", metrics_app)
-    logger.info("Metrics endpoint enabled at /metrics")
 
 if __name__ == "__main__":
     import uvicorn

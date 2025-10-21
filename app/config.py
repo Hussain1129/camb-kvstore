@@ -1,6 +1,6 @@
-import os
 from pydantic_settings import BaseSettings
-from functools import lru_cache
+import os
+
 from typing import Optional
 from dotenv import load_dotenv
 
@@ -28,13 +28,15 @@ class Settings(BaseSettings):
     REDIS_PORT: int = os.getenv("REDIS_PORT", "6379")
     REDIS_PASSWORD: Optional[str] = os.getenv("REDIS_PASSWORD", "admin123")
     REDIS_DB: int = os.getenv("REDIS_DB", 0)
+
+
     REDIS_MAX_CONNECTIONS: int = os.getenv("REDIS_MAX_CONNECTIONS", 100)
     REDIS_SOCKET_TIMEOUT: int = os.getenv("REDIS_SOCKET_TIMEOUT", 10)
     REDIS_SOCKET_CONNECT_TIMEOUT: int = os.getenv("REDIS_SOCKET_CONNECT_TIMEOUT", 10)
 
     HUEY_REDIS_HOST: str = os.getenv("HUEY_REDIS_HOST", "localhost")
     HUEY_REDIS_PORT: int = os.getenv("HUEY_REDIS_PORT", "6379")
-    HUEY_REDIS_DB: int = os.getenv("HUEY_REDIS_DB", 1)
+    HUEY_REDIS_DB: int = os.getenv("HUEY_REDIS_DB", 0)
     HUEY_IMMEDIATE: bool = bool(os.getenv("HUEY_IMMEDIATE")) if os.getenv("HUEY_IMMEDIATE") is not None else True
     HUEY_WORKERS: int = os.getenv("HUEY_WORKERS", 1)
 
@@ -43,8 +45,6 @@ class Settings(BaseSettings):
     MAX_VALUE_SIZE: int = os.getenv("MAX_VALUE_SIZE", 2097152)
     CLEANUP_INTERVAL_SECONDS: int = os.getenv("CLEANUP_INTERVAL_SECONDS", 200)
 
-    ENABLE_METRICS: bool = bool(os.getenv("ENABLE_METRICS")) if os.getenv("ENABLE_METRICS") is not None else False
-    METRICS_PORT: int = os.getenv("METRICS_PORT", "9000")
 
     RATE_LIMIT_ENABLED: bool = bool(os.getenv("RATE_LIMIT_ENABLED")) if os.getenv("RATE_LIMIT_ENABLED") is not None else False
     RATE_LIMIT_REQUESTS: int = os.getenv("RATE_LIMIT_REQUESTS", "1000")
@@ -65,9 +65,9 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = True
+        # model_config = {"extra": "ignore"}
 
 
-@lru_cache()
 def get_settings() -> Settings:
     """Get the cached settings instance."""
     return Settings()

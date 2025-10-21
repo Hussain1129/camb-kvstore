@@ -1,7 +1,6 @@
 from app.config import settings
 from app.tasks import huey
 from redis import Redis as Redis_Client, ConnectionError
-from app.utils.metrics import background_task_count, background_task_duration, track_time
 from app.utils.logger import get_logger
 from huey import crontab
 
@@ -9,7 +8,6 @@ logger = get_logger(__name__)
 
 
 @huey.periodic_task(crontab(minute=f'*/{settings.CLEANUP_INTERVAL_SECONDS // 60}'))
-@track_time(background_task_duration, {"task_name": "cleanup_expired_keys"})
 def cleanup_expired_keys():
     """
     Periodic task to clean-up expired keys and their metadata.
@@ -54,7 +52,6 @@ def cleanup_expired_keys():
 
         logger.info(f"TTL cleanup task completed. Cleaned {cleaned_count} expired keys")
 
-        background_task_count.labels(task_name="cleanup_expired_keys", status="success").inc()
 
         redis_client.close()
 
@@ -62,16 +59,13 @@ def cleanup_expired_keys():
 
     except ConnectionError as e:
         logger.error(f"Redis connection error in TTL cleanup: {str(e)}")
-        background_task_count.labels(task_name="cleanup_expired_keys", status="error").inc()
         raise ConnectionError(f"Redis connection error in TTL cleanup: {str(e)}")
     except Exception as e:
         logger.error(f"Error in TTL cleanup task: {str(e)}")
-        background_task_count.labels(task_name="cleanup_expired_keys", status="error").inc()
         raise Exception(f"Error in TTL cleanup task: {str(e)}")
 
 
 @huey.task()
-@track_time(background_task_duration, {"task_name": "cleanup_ex_tenant_keys"})
 def cleanup_ex_tenant_keys(tenant_id: str):
     """
     Task to clean up all keys for a specific tenant.
@@ -102,7 +96,6 @@ def cleanup_ex_tenant_keys(tenant_id: str):
 
         logger.info(f"Cleanup completed for tenant {tenant_id}. Deleted {cleaned_count} keys")
 
-        background_task_count.labels(task_name="cleanup_ex_tenant_keys", status="success").inc()
 
         redis_client.close()
 
@@ -110,5 +103,4 @@ def cleanup_ex_tenant_keys(tenant_id: str):
 
     except Exception as e:
         logger.error(f"Error in tenant cleanup task for {tenant_id}: {str(e)}")
-        background_task_count.labels(task_name="cleanup_ex_tenant_keys", status="error").inc()
         raise Exception(f"Error in tenant cleanup task for {tenant_id}: {str(e)}")

@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, status
 from typing import Dict, Any
 import redis
+
+from app.config import settings
 from app.core.redis_client import get_redis
 from app.utils.logger import get_logger
 
@@ -14,18 +16,14 @@ router = APIRouter()
     response_model=Dict[str, Any],
     status_code=status.HTTP_200_OK,
     summary="Health check endpoint",
-    description="Check the health status of the application and its dependencies"
+    description="Check the health status of the application and it dependencies"
 )
 async def health_check(redis_client: redis.Redis = Depends(get_redis)) -> Dict[str, Any]:
-    """
-    Health check endpoint for Kubernetes liveness probe.
-
-    Returns service health status and dependency checks.
-    """
+    """Health check with dependency status"""
     health_status = {
         "status": "healthy",
-        "service": "camb-kvstore",
-        "version": "1.0.0",
+        "service": "camb-kvstore-service",
+        "version": settings.APP_VERSION,
         "dependencies": {}
     }
 
@@ -54,11 +52,7 @@ async def health_check(redis_client: redis.Redis = Depends(get_redis)) -> Dict[s
     description="Check if the application is ready to accept traffic"
 )
 async def readiness_check(redis_client: redis.Redis = Depends(get_redis)) -> Dict[str, str]:
-    """
-    Readiness check endpoint for Kubernetes readiness probe.
-
-    Returns ready status if all dependencies are available.
-    """
+    """K8s readiness probe"""
     try:
         redis_client.ping()
         return {"status": "ready"}
@@ -75,9 +69,5 @@ async def readiness_check(redis_client: redis.Redis = Depends(get_redis)) -> Dic
     description="Check if the application is alive"
 )
 async def liveness_check() -> Dict[str, str]:
-    """
-    Liveness check endpoint for Kubernetes liveness probe.
-
-    Returns alive status to indicate the application is running.
-    """
+    """K8s liveness probe"""
     return {"status": "alive"}

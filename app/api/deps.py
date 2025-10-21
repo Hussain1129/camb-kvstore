@@ -31,7 +31,7 @@ async def get_current_user(
     credentials: Annotated[HTTPAuthorizationCredentials, Depends(security)],
     auth_service: Annotated[AuthService, Depends(get_auth_service)]
 ) -> User:
-    """Dependency to get current authenticated user from JWT token."""
+    """This dependency to get current authenticated user extracting from attached JWT token."""
     try:
         token = credentials.credentials
         user = auth_service.verify_token(token)
@@ -48,11 +48,11 @@ async def get_current_user(
 async def get_current_active_user(
     current_user: Annotated[User, Depends(get_current_user)]
 ) -> User:
-    """Dependency to get current active user."""
+    """This dependency is to get current active user."""
     if not current_user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user"
+            detail="This user is inactive"
         )
     return current_user
 
@@ -60,5 +60,5 @@ async def get_current_active_user(
 def get_tenant_id(
     current_user: Annotated[User, Depends(get_current_active_user)]
 ) -> str:
-    """Dependency to extract tenant ID from current user."""
+    """This dependency is to extract tenant id from current user."""
     return current_user.tenant_id

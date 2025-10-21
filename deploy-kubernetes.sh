@@ -13,7 +13,7 @@ fi
 
 
 echo "Starting Minikube..."
-minikube start --cpus=4 --memory=8192 --driver=docker
+minikube start        # --cpus=2 --memory=4096 --driver=docker
 
 echo "Enabling Minikube addons..."
 minikube addons enable ingress
